@@ -1035,11 +1035,13 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   A lone pane beside such a `⋯` draws no second ellipsis (its actions are in the tab's menu), on a
   desktop as on touch. The pane's own context menu carries pane actions; it opens at the pointer
   without changing which pane is focused. The pane header's ellipsis opens the same menu on touch.
-  A lone tab with no row (a phone's screen made short by its keyboard) keeps that ellipsis at the
-  pane's top right, below a glass header and never under the header's own `⋯`, as an iPhone
-  navigation bar (and the Claude iOS app) keeps one overflow button in the bar and the content's
-  controls below it. Wherever that ellipsis shows to a finger, the pane's banners (View only and the
-  rest) start below it, so none covers it.
+  A lone tab with no row (a phone at most 700px tall, including the iPhone Duo's 678-point outer
+  display, landscape or a screen made short by its keyboard) keeps that ellipsis at the pane's top
+  right, below a glass header and never under the header's own `⋯`, as an iPhone navigation bar (and
+  the Claude iOS app) keeps one overflow button in the bar and the content's controls below it.
+  Extending the compact-height state to the Duo follows Apple's outer-display guidance to put chrome
+  at the edge and preserve vertical room for content. Wherever that ellipsis shows to a finger, the
+  pane's banners (View only and the rest) start below it, so none covers it.
 - On a PC whose terminals are the Herdr app's (`HerdrIdentity.runtime` `herdr-core`), the app's
   window owns the workspaces, tabs and splits, and herdr-core refuses to rename, reorder or move
   them, to split, swap, zoom or resize a pane, and the worktree actions. The browser then leaves

@@ -7,9 +7,10 @@ import panes from "../site/demo/fixtures/panes.json";
 import { buildDemoApp } from "./demo-build.ts";
 import { chromePath } from "./chrome-path.ts";
 
-// #1457: with the keyboard up a phone is short enough to drop a lone tab's row, and the chat then
-// puts the glass header over the pane. The pane's own menu button must start below that header,
-// never under its More button (six dots, not three), and a banner (View only) must not cover it.
+// #1457: a compact-height phone (including the iPhone Duo's outer display, or a phone with its
+// keyboard up) drops a lone tab's row, and the chat then puts the glass header over the pane. The
+// pane's own menu button must start below that header, never under its More button (six dots, not
+// three), and a banner (View only) must not cover it.
 type SocketsWindow = Window & { glassSockets: WebSocket[] };
 
 /** Keeps the demo's sockets, so the check can turn this connection into a view-only one. */
@@ -87,11 +88,22 @@ try {
         await page.getByTitle("Chat transcript (⌘⇧J)", { exact: true }).click();
         const message = page.getByRole("textbox", { name: "Message", exact: true });
         await message.waitFor();
+
+        // The iPhone Duo's 466x678-point outer display is compact even before its keyboard opens.
+        // A regular-height phone below still keeps the row in the same one-tab state.
+        await page.setViewportSize({ width: 466, height: 678 });
+        await page.locator(".tab-strip").waitFor({ state: "detached" });
+        assert.notEqual(await page.locator(".app-header").evaluate((node) => getComputedStyle(node).backdropFilter), "none",
+          "the Duo outer display gives a lone-tab chat its glass header");
+        await checkMenus(page, "duo-outer");
+
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.locator(".tab-strip").waitFor();
         assert.equal(await page.locator(".pane-frame.is-single .pane-frame-menu").isVisible(), false,
           "upright, the lone tab keeps its row, whose menu carries the pane's actions");
 
         // the report's own moment: the message box focused and the keyboard up. Android shrinks the
-        // layout viewport with it, under the 600px that drops a lone tab's row (TabStrip's cramped).
+        // layout viewport with it, under the 700px that drops a lone tab's row (TabStrip's cramped).
         await message.click();
         await page.setViewportSize({ width: 390, height: 470 });
         await page.evaluate(() => (window as Window & { glassViewport?: (value: number) => void }).glassViewport?.(470));
@@ -138,7 +150,8 @@ async function checkMenus(page: Page, label: string): Promise<void> {
   if (!pane) throw new Error(`${label}: the lone pane's menu has a box`);
   if (evidence) {
     mkdirSync(evidence, { recursive: true });
-    await page.screenshot({ path: join(evidence, `phone-glass-header-${label}.png`), clip: { x: 0, y: 0, width: 390, height: 160 } });
+    const viewport = page.viewportSize();
+    if (viewport) await page.screenshot({ path: join(evidence, `phone-glass-header-${label}.png`), clip: { x: 0, y: 0, width: viewport.width, height: Math.min(160, viewport.height) } });
   }
   const overlaps = pane.x < more.x + more.width && more.x < pane.x + pane.width && pane.y < more.y + more.height && more.y < pane.y + pane.height;
   assert.equal(overlaps, false, `${label}: the pane's menu ${JSON.stringify(pane)} is drawn under the header's More button ${JSON.stringify(more)}`);

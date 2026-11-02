@@ -80,8 +80,8 @@ export function TabStrip({ snapshot, workspace, selectedPane, onSelectPane, onNe
   const hoverMenu = useMediaQuery("(hover: hover) and (pointer: fine) and (min-width: 769px)");
   const menuButton = touchMenu || hoverMenu;
   const soloPanes = useMediaQuery(SOLO_PANE_QUERY);
-  // a short phone screen (landscape, a small phone) has no height to spare: a lone tab is not
-  // drawn there, so an approval card keeps its options in reach; its actions stay in the header
+  // a compact-height phone screen (a foldable's outer display, landscape or the keyboard) has no
+  // height to spare: a lone tab is not drawn there, so the pane and approval cards keep their room
   const cramped = useMediaQuery(CRAMPED_QUERY);
   const strip = useRef<HTMLDivElement>(null);
   const [picker, setPicker] = useState<{ anchor: HTMLElement; tab: HerdrTab; point?: { x: number; y: number }; previousFocus: HTMLElement | null; touch: boolean; workspaces?: true } | null>(null);
