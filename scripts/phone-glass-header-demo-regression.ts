@@ -96,6 +96,14 @@ try {
         assert.notEqual(await page.locator(".app-header").evaluate((node) => getComputedStyle(node).backdropFilter), "none",
           "the Duo outer display gives a lone-tab chat its glass header");
         await checkMenus(page, "duo-outer");
+        // with the row out, its New tab entries stay in reach: the lone pane's menu carries them
+        await page.locator(".pane-frame.is-single .pane-frame-menu").click();
+        const paneSheet = page.locator(".row-sheet, .row-menu");
+        await paneSheet.getByText("New terminal", { exact: true }).waitFor();
+        await paneSheet.getByText("New tab with agent\u2026", { exact: true }).click();
+        await page.locator("#new-session-title").waitFor();
+        await page.keyboard.press("Escape");
+        await page.locator("#new-session-title").waitFor({ state: "detached" });
 
         await page.setViewportSize({ width: 390, height: 844 });
         await page.locator(".tab-strip").waitFor();

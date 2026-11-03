@@ -1040,8 +1040,11 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   right, below a glass header and never under the header's own `⋯`, as an iPhone navigation bar (and
   the Claude iOS app) keeps one overflow button in the bar and the content's controls below it.
   Extending the compact-height state to the Duo follows Apple's outer-display guidance to put chrome
-  at the edge and preserve vertical room for content. Wherever that ellipsis shows to a finger, the
-  pane's banners (View only and the rest) start below it, so none covers it.
+  at the edge and preserve vertical room for content. That ellipsis then carries what the missing
+  row's menu would: a split tab's panes first, then the pane's actions, then New terminal (the row's
+  `+`) and New tab with agent…, so a new tab never needs the row (as Chrome for iPhone keeps New
+  Tab in its overflow menu). Wherever that ellipsis shows to a finger, the pane's banners (View only
+  and the rest) start below it, so none covers it.
 - On a PC whose terminals are the Herdr app's (`HerdrIdentity.runtime` `herdr-core`), the app's
   window owns the workspaces, tabs and splits, and herdr-core refuses to rename, reorder or move
   them, to split, swap, zoom or resize a pane, and the worktree actions. The browser then leaves

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type MouseEvent, type MutableRefObject, type PointerEvent, type ReactNode } from "react";
-import { ArchiveRestore, Columns2, Ellipsis, Eraser, Maximize2, MoveHorizontal, Pencil, Rows2, ArrowLeftRight, TextWrap, X } from "lucide-react";
+import { ArchiveRestore, Bot, Columns2, Ellipsis, Eraser, Maximize2, MoveHorizontal, Pencil, Plus, Rows2, ArrowLeftRight, Terminal, TextWrap, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import type { HerdrPane, PaneLayoutSnapshot, SessionSnapshot } from "../../shared/protocol.ts";
 import { useAppLayout, useMachineApi, useMachineId } from "../lib/machineContext.tsx";
@@ -9,7 +9,8 @@ import { PaneCachedContext, PanePresentedContext, PaneShownContext, PaneSubmitCo
 import { cachedPaneCells, visitPaneTab } from "../lib/paneTabCache.ts";
 import { routeMissing } from "../lib/api.ts";
 import { layoutCells, zoomMode } from "../lib/layoutMap.ts";
-import { layoutTopology, paneContextPress, paneFieldTarget, SOLO_PANE_QUERY, soloPane, splitPath, splitRatioAt } from "../lib/paneCanvas.ts";
+import { CRAMPED_QUERY, layoutTopology, loneTabHidden, paneContextPress, paneFieldTarget, SOLO_PANE_QUERY, soloPane, splitPath, splitRatioAt } from "../lib/paneCanvas.ts";
+import { rosterPanes } from "../lib/dagPane.ts";
 import { useT } from "../lib/i18n.ts";
 import { useSettings } from "../lib/settings.ts";
 import { MIRROR_WRAP_QUERY, wideGridKey, wideGrids } from "../lib/terminalFold.ts";
@@ -18,6 +19,7 @@ import { useFocusTrap } from "../lib/useFocusTrap.ts";
 import { usePhoneSheetBack } from "../lib/sheetHistory.ts";
 import { useMediaQuery } from "../lib/useMediaQuery.ts";
 import { paneLifetimes } from "../lib/paneLifetime.ts";
+import { AgentMark } from "./AgentMark.tsx";
 import { displayPaneTitle } from "./Sidebar.tsx";
 import { RowMenu, type RowMenuItem } from "./RowMenu.tsx";
 import { ConfirmDialog } from "./ConfirmDialog.tsx";
@@ -40,6 +42,9 @@ interface Props {
   mirrored?: boolean;
   /** opens Recover unsent text for the pane, offered while earlier herdrs' panes left some (UnsentText) */
   onRecoverUnsent?: (target: HerdrPane) => void;
+  /** the tab row's New tab with agent… and its + (a shell tab): where a lone tab's row is left out (TabStrip's cramped), the pane's menu offers them */
+  onNewTab?: () => void;
+  onNewTerminal?: () => Promise<void>;
 }
 type Menu = { paneId: string; anchor: HTMLElement; point?: { x: number; y: number }; previousFocus: HTMLElement | null };
 interface Drag {
@@ -62,7 +67,7 @@ interface Drag {
 }
 
 /** The active tab, drawn from herdr's rectangles. No browser-owned layout or PTY state. */
-export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged, renderPane, actionsRef, onOpenInHalf, mirrored = false, onRecoverUnsent }: Props) {
+export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged, renderPane, actionsRef, onOpenInHalf, mirrored = false, onRecoverUnsent, onNewTab, onNewTerminal }: Props) {
   const t = useT();
   const { settings, update: updateSettings } = useSettings();
   const narrowScreen = useMediaQuery(MIRROR_WRAP_QUERY);
@@ -75,6 +80,7 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
   const apple = /Mac|iPhone|iPad/.test(navigator.platform);
   const coarse = useMediaQuery("(pointer: coarse)");
   const narrow = useMediaQuery(SOLO_PANE_QUERY);
+  const cramped = useMediaQuery(CRAMPED_QUERY);
   const api = useMachineApi();
   const canvas = useRef<HTMLDivElement>(null);
   const [submits] = useState(() => new PaneSubmitRetention());
@@ -182,7 +188,35 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
         if (alive.current && latest.current.tabId === tabId && latest.current.selection === selection) onSelect(target.pane_id);
       }) },
   ];
-  const itemsFor = (target: HerdrPane): RowMenuItem[] => [
+  // A lone tab on a cramped phone has no row (TabStrip), so the pane's menu carries what the row's
+  // menu would: the tab's other panes, shown one at a time there, and the way to a new tab
+  const rowItems = (target: HerdrPane): { panes: RowMenuItem[]; tab: RowMenuItem[] } => {
+    const tabs = snapshot?.tabs.filter((tab) => tab.workspace_id === target.workspace_id).length ?? 0;
+    if (!loneTabHidden(cramped, tabs)) return { panes: [], tab: [] };
+    const own = rosterPanes(snapshot?.panes.filter((item) => item.tab_id === target.tab_id) ?? [], selectedPaneId);
+    return {
+      panes: own.length < 2 ? [] : own.map((item): RowMenuItem => ({
+        id: `pane:${item.pane_id}`, label: displayPaneTitle(item), icon: Terminal,
+        glyph: item.agent ? <AgentMark agent={item.agent} size={16} /> : undefined,
+        current: item.pane_id === selectedPaneId, run: () => onSelect(item.pane_id),
+      })),
+      tab: [
+        ...(onNewTerminal ? [{ id: "new-terminal", label: t("New terminal"), icon: Plus, run: () => {
+          setError(null);
+          void onNewTerminal().catch((reason: unknown) => {
+            if (alive.current) setError({ message: t("New terminal failed: {reason}", { reason: userErrorMessage(reason).message }), detail: null });
+          });
+        } }] : []),
+        ...(onNewTab ? [{ id: "new-agent-tab", label: t("New tab with agent…"), icon: Bot, run: onNewTab }] : []),
+      ],
+    };
+  };
+  const itemsFor = (target: HerdrPane): RowMenuItem[] => {
+    const row = rowItems(target);
+    return [row.panes, paneItemsFor(target), row.tab].filter((group) => group.length > 0)
+      .flatMap((group, at) => at === 0 ? group : group.map((item, index) => index === 0 ? { ...item, divider: true } : item));
+  };
+  const paneItemsFor = (target: HerdrPane): RowMenuItem[] => [
     ...layoutItems(target),
     // a mirror, or a pane watched at another device's grid, wider than the screen is folded to it
     // (lib/terminalFold.ts); a full-screen program reads better at its own width, panned sideways.
