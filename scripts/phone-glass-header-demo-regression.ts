@@ -100,6 +100,8 @@ try {
         await page.locator(".pane-frame.is-single .pane-frame-menu").click();
         const paneSheet = page.locator(".row-sheet, .row-menu");
         await paneSheet.getByText("New terminal", { exact: true }).waitFor();
+        assert.equal(await paneSheet.getByText("Split right", { exact: true }).count(), 0,
+          "a canvas showing one pane at a time offers no split, as the row's menu does");
         await paneSheet.getByText("New tab with agent\u2026", { exact: true }).click();
         await page.locator("#new-session-title").waitFor();
         await page.keyboard.press("Escape");

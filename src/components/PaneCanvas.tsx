@@ -190,9 +190,9 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
   ];
   // A lone tab on a cramped phone has no row (TabStrip), so the pane's menu carries what the row's
   // menu would: the tab's other panes, shown one at a time there, and the way to a new tab
-  const rowItems = (target: HerdrPane): { panes: RowMenuItem[]; tab: RowMenuItem[] } => {
+  const rowItems = (target: HerdrPane): { panes: RowMenuItem[]; tab: RowMenuItem[] } | null => {
     const tabs = snapshot?.tabs.filter((tab) => tab.workspace_id === target.workspace_id).length ?? 0;
-    if (!loneTabHidden(cramped, tabs)) return { panes: [], tab: [] };
+    if (!loneTabHidden(cramped, tabs)) return null;
     const own = rosterPanes(snapshot?.panes.filter((item) => item.tab_id === target.tab_id) ?? [], selectedPaneId);
     return {
       panes: own.length < 2 ? [] : own.map((item): RowMenuItem => ({
@@ -202,9 +202,10 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
       })),
       tab: [
         ...(onNewTerminal ? [{ id: "new-terminal", label: t("New terminal"), icon: Plus, run: () => {
+          const tabId = latest.current.tabId;
           setError(null);
           void onNewTerminal().catch((reason: unknown) => {
-            if (alive.current) setError({ message: t("New terminal failed: {reason}", { reason: userErrorMessage(reason).message }), detail: null });
+            if (alive.current && latest.current.tabId === tabId) setError({ message: t("New terminal failed: {reason}", { reason: userErrorMessage(reason).message }), detail: null });
           });
         } }] : []),
         ...(onNewTab ? [{ id: "new-agent-tab", label: t("New tab with agent…"), icon: Bot, run: onNewTab }] : []),
@@ -213,7 +214,10 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
   };
   const itemsFor = (target: HerdrPane): RowMenuItem[] => {
     const row = rowItems(target);
-    return [row.panes, paneItemsFor(target), row.tab].filter((group) => group.length > 0)
+    if (!row) return paneItemsFor(target);
+    // as the row's menu does, a canvas showing one pane at a time offers no split or zoom, only unzoom
+    const own = paneItemsFor(target).filter((item) => item.id === "zoom" ? layout?.zoomed : item.id !== "split-right" && item.id !== "split-down");
+    return [row.panes, own, row.tab].filter((group) => group.length > 0)
       .flatMap((group, at) => at === 0 ? group : group.map((item, index) => index === 0 ? { ...item, divider: true } : item));
   };
   const paneItemsFor = (target: HerdrPane): RowMenuItem[] => [
