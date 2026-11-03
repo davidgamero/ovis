@@ -112,6 +112,9 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
     ?? snapshot?.panes.find((item) => item.tab_id === previousTab)
     ?? null;
   const layout = snapshot?.layouts.find((item) => item.tab_id === presented?.tab_id) ?? null;
+  // the open tab is a lone one with no row (TabStrip's cramped): its lone pane draws no ellipsis
+  const loneRowHidden = presented !== null
+    && loneTabHidden(cramped, snapshot?.tabs.filter((tab) => tab.workspace_id === presented.workspace_id).length ?? 0);
   const topology = layout ? layoutTopology(layout) : "";
   const latest = useRef({ topology, tabId: presented?.tab_id, paneId: selectedPaneId, selection: 0 });
   latest.current = { topology, tabId: presented?.tab_id, paneId: selectedPaneId,
@@ -192,7 +195,8 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
       }) },
   ];
   // A lone tab on a cramped phone has no row (TabStrip), so the pane's menu carries what the row's
-  // menu would: the tab's other panes, shown one at a time there, and the way to a new tab
+  // menu would: the tab's other panes, shown one at a time there, and the way to a new tab. There
+  // the pane draws no ellipsis of its own: the header's More menu offers this menu (App)
   const rowItems = (target: HerdrPane): { panes: RowMenuItem[]; tab: RowMenuItem[] } | null => {
     const tabs = snapshot?.tabs.filter((tab) => tab.workspace_id === target.workspace_id).length ?? 0;
     if (!loneTabHidden(cramped, tabs)) return null;
@@ -356,7 +360,7 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
           if (paneContextPress(event, apple) && !paneFieldTarget(event.target)) { event.preventDefault(); event.stopPropagation(); }
         }}
         onContextMenuCapture={(event) => context(event, item)}>
-        <div className="pane-frame-head" draggable={onOpenInHalf !== undefined && !coarse}
+        {!(single && !offTab && loneRowHidden) && <div className="pane-frame-head" draggable={onOpenInHalf !== undefined && !coarse}
           onClick={(event) => {
             if (!onOpenInHalf || coarse || paneContextPress(event, apple) || (event.target instanceof Element && event.target.closest("button"))) return;
             const frame = event.currentTarget.parentElement;
@@ -375,7 +379,7 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
           <span className="pane-frame-title">{displayPaneTitle(item)}</span>
           <button type="button" className="icon-button pane-frame-menu" aria-label={t("Pane actions for {name}", { name: displayPaneTitle(item) })}
             onClick={(event) => showMenu(item, event.currentTarget)}><Ellipsis aria-hidden="true" /></button>
-        </div>
+        </div>}
         <div className="pane-frame-body"><PaneCachedContext.Provider value={cell.cached && !cell.retained}><PaneWatchedContext.Provider value={cell.cached && !cell.retained && watchedTabs.has(item.tab_id)}><PanePresentedContext.Provider value={!offTab}><PaneShownContext.Provider value={!hidden}>{renderPane(item, active, alone === null && cells.length > 1)}</PaneShownContext.Provider></PanePresentedContext.Provider></PaneWatchedContext.Provider></PaneCachedContext.Provider></div>
       </section>;
     })}
