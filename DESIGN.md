@@ -1043,7 +1043,9 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   at the edge and preserve vertical room for content. That ellipsis then carries what the missing
   row's menu would: a split tab's panes first, then the pane's actions, then New terminal (the row's
   `+`) and New tab with agent…, so a new tab never needs the row (as Chrome for iPhone keeps New
-  Tab in its overflow menu). Wherever that ellipsis shows to a finger, the pane's banners (View only
+  Tab in its overflow menu), and Rename tab, in a dialog in place of the row's inline field. Closing
+  the lone tab closes its workspace, which Close pane (a one-pane tab) and the sidebar's Close
+  workspace already do. Wherever that ellipsis shows to a finger, the pane's banners (View only
   and the rest) start below it, so none covers it.
 - On a PC whose terminals are the Herdr app's (`HerdrIdentity.runtime` `herdr-core`), the app's
   window owns the workspaces, tabs and splits, and herdr-core refuses to rename, reorder or move

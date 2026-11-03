@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type MouseEvent, type MutableRefObject, type PointerEvent, type ReactNode } from "react";
 import { ArchiveRestore, Bot, Columns2, Ellipsis, Eraser, Maximize2, MoveHorizontal, Pencil, Plus, Rows2, ArrowLeftRight, Terminal, TextWrap, X } from "lucide-react";
 import { createPortal } from "react-dom";
-import type { HerdrPane, PaneLayoutSnapshot, SessionSnapshot } from "../../shared/protocol.ts";
+import type { HerdrPane, HerdrTab, PaneLayoutSnapshot, SessionSnapshot } from "../../shared/protocol.ts";
+import { MAX_LABEL_CHARS } from "../../shared/labels.ts";
+import { customTabLabel } from "../lib/tabName.ts";
 import { useAppLayout, useMachineApi, useMachineId } from "../lib/machineContext.tsx";
 import { PANE_DRAG_TYPE, paneDragData, type SplitSide } from "../lib/split.ts";
 import { PaneSubmitRetention } from "../lib/paneSubmitRetention.ts";
@@ -94,6 +96,7 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
   }, [snapshot, submits]);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [renaming, setRenaming] = useState<HerdrPane | null>(null);
+  const [renamingTab, setRenamingTab] = useState<HerdrTab | null>(null);
   const [closing, setClosing] = useState<HerdrPane | null>(null);
   const [error, setError] = useState<UserError | null>(null);
   // A new pane can be selected before its snapshot arrives, and a selected pane can close
@@ -135,7 +138,7 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
     return () => { alive.current = false; cancelDrag(); };
   }, []);
   useEffect(() => { cancelDrag(); }, [topology]);
-  useEffect(() => { setMenu(null); setRenaming(null); setClosing(null); setError(null); }, [presented?.tab_id]);
+  useEffect(() => { setMenu(null); setRenaming(null); setRenamingTab(null); setClosing(null); setError(null); }, [presented?.tab_id]);
   useEffect(() => { if (menu && !snapshot?.panes.some((item) => item.pane_id === menu.paneId)) setMenu(null); }, [snapshot, menu]);
 
   const run = (operation: () => Promise<unknown>): void => {
@@ -193,6 +196,7 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
   const rowItems = (target: HerdrPane): { panes: RowMenuItem[]; tab: RowMenuItem[] } | null => {
     const tabs = snapshot?.tabs.filter((tab) => tab.workspace_id === target.workspace_id).length ?? 0;
     if (!loneTabHidden(cramped, tabs)) return null;
+    const tab = snapshot?.tabs.find((entry) => entry.tab_id === target.tab_id);
     const own = rosterPanes(snapshot?.panes.filter((item) => item.tab_id === target.tab_id) ?? [], selectedPaneId);
     return {
       panes: own.length < 2 ? [] : own.map((item): RowMenuItem => ({
@@ -209,6 +213,8 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
           });
         } }] : []),
         ...(onNewTab ? [{ id: "new-agent-tab", label: t("New tab with agent…"), icon: Bot, run: onNewTab }] : []),
+        // the row's inline name field is gone with it: the tab is named in a dialog, as a pane is
+        ...(appLayout || !tab ? [] : [{ id: "rename-tab", label: t("Rename tab"), icon: Pencil, run: () => setRenamingTab(tab) }]),
       ],
     };
   };
@@ -396,18 +402,21 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
     })}
     {error && <div className="pane-canvas-error" role="alert">{error.message}{error.detail !== null && <><br /><code>{error.detail}</code></>}<button className="icon-button" aria-label={t("Dismiss")} onClick={() => setError(null)}><X /></button></div>}
     {menu && target && <RowMenu anchor={menu.anchor} point={menu.point} restoreFocusTo={menu.previousFocus} title={t("Pane actions for {name}", { name: displayPaneTitle(target) })} items={items} onClose={closeMenu} />}
-    {renaming && <PaneRename pane={renaming} onClose={() => setRenaming(null)} onSave={async (label) => { await api.renamePane(renaming.pane_id, label); onChanged(); }} />}
+    {renaming && <RenameDialog title={t("Rename pane")} field={t("Pane name")} initial={renaming.label ?? ""} maxLength={80} onClose={() => setRenaming(null)} onSave={async (label) => { await api.renamePane(renaming.pane_id, label); onChanged(); }} />}
+    {renamingTab && <RenameDialog title={t("Rename tab")} field={t("Tab name")} initial={customTabLabel(renamingTab, 1) ?? ""} maxLength={MAX_LABEL_CHARS} required={t("A tab needs a name.")}
+      onClose={() => setRenamingTab(null)} onSave={async (label) => { await api.renameTab(renamingTab.tab_id, label); onChanged(); }} />}
     {closing && <ConfirmDialog title={t("Close pane {name}?", { name: displayPaneTitle(closing) })}
       body={t("The pane's running processes will stop. Closing its last pane also closes the workspace.")}
       confirmLabel={t("Close pane")} onClose={() => setClosing(null)} onConfirm={async () => { await api.closePane(closing.pane_id); setClosing(null); onChanged(); }} />}
   </div></PaneSubmitContext.Provider>;
 }
 
-function PaneRename({ pane, onClose, onSave }: { pane: HerdrPane; onClose: () => void; onSave: (label: string) => Promise<void> }) {
+/** A pane's or a lone tab's name; `required` is the error an empty name gets, where one is not allowed (a tab's). */
+function RenameDialog({ title, field, initial, maxLength, required, onClose, onSave }: { title: string; field: string; initial: string; maxLength: number; required?: string; onClose: () => void; onSave: (label: string) => Promise<void> }) {
   const t = useT();
   const input = useRef<HTMLInputElement>(null);
   const surface = useFocusTrap<HTMLDivElement>(true, { initialFocus: input });
-  const [value, setValue] = useState(pane.label ?? "");
+  const [value, setValue] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<UserError | null>(null);
   usePhoneSheetBack(() => { if (busy) return false; onClose(); });
@@ -417,10 +426,14 @@ function PaneRename({ pane, onClose, onSave }: { pane: HerdrPane; onClose: () =>
     return () => window.removeEventListener("keydown", key, true);
   }, [busy, onClose]);
   return createPortal(<div className="modal-scrim" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
-    <div ref={surface} className="modal" role="dialog" aria-modal="true" aria-label={t("Rename pane")}>
-      <form className="pane-rename-form" onSubmit={(event) => { event.preventDefault(); if (busy) return; setBusy(true); void onSave(value.trim()).then(onClose, (reason) => { setError(userErrorMessage(reason)); setBusy(false); }); }}>
-        <header className="modal-header"><h2 className="modal-title">{t("Rename pane")}</h2></header>
-        <div className="modal-body"><label>{t("Pane name")}<input ref={input} className="input" value={value} disabled={busy} maxLength={80} onFocus={(event) => event.currentTarget.select()} onChange={(event) => setValue(event.target.value)} /></label>{error && <p role="alert">{error.message}{error.detail !== null && <><br /><code>{error.detail}</code></>}</p>}</div>
+    <div ref={surface} className="modal" role="dialog" aria-modal="true" aria-label={title}>
+      <form className="pane-rename-form" onSubmit={(event) => {
+        event.preventDefault();
+        if (busy) return;
+        if (required !== undefined && value.trim() === "") { setError({ message: required, detail: null }); return; }
+        setBusy(true); void onSave(value.trim()).then(onClose, (reason) => { setError(userErrorMessage(reason)); setBusy(false); }); }}>
+        <header className="modal-header"><h2 className="modal-title">{title}</h2></header>
+        <div className="modal-body"><label>{field}<input ref={input} className="input" value={value} disabled={busy} maxLength={maxLength} onFocus={(event) => event.currentTarget.select()} onChange={(event) => setValue(event.target.value)} /></label>{error && <p role="alert">{error.message}{error.detail !== null && <><br /><code>{error.detail}</code></>}</p>}</div>
         <footer className="modal-footer"><button type="button" className="btn" disabled={busy} onClick={onClose}>{t("Cancel")}</button><button className="btn btn-primary" disabled={busy}>{t("Save")}</button></footer>
       </form>
     </div>

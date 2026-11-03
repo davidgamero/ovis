@@ -106,9 +106,17 @@ try {
         await page.locator("#new-session-title").waitFor();
         await page.keyboard.press("Escape");
         await page.locator("#new-session-title").waitFor({ state: "detached" });
+        // and the tab is named in a dialog, the row's inline field being gone with it
+        await page.locator(".pane-frame.is-single .pane-frame-menu").click();
+        await paneSheet.getByText("Rename tab", { exact: true }).click();
+        const tabName = page.getByRole("textbox", { name: "Tab name", exact: true });
+        await tabName.fill("Duo tab");
+        await tabName.press("Enter");
+        await tabName.waitFor({ state: "detached" });
 
         await page.setViewportSize({ width: 390, height: 844 });
         await page.locator(".tab-strip").waitFor();
+        await page.locator(".tab-strip-label", { hasText: "Duo tab" }).waitFor();
         assert.equal(await page.locator(".pane-frame.is-single .pane-frame-menu").isVisible(), false,
           "upright, the lone tab keeps its row, whose menu carries the pane's actions");
 
