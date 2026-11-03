@@ -81,6 +81,17 @@ describe("the pane canvas on a PC the Herdr app lays out", () => {
     expect(heads.map((head) => head.parent?.props["data-layout-pane"])).toEqual(["p2"]);
   });
 
+  it("leaves no actions behind for the header's menu once the canvas is gone", async () => {
+    const actionsRef: { current: ((target: HerdrPane) => RowMenuItem[]) | null } = { current: null };
+    await act(async () => {
+      renderer = create(createElement(SettingsProvider, null, createElement(PaneCanvas, { snapshot, pane: snapshot.panes[0] as HerdrPane, selectedPaneId: "p1", onSelect: () => {}, onChanged: () => {}, renderPane: () => null, actionsRef })));
+    });
+    expect(actionsRef.current).not.toBeNull();
+    await act(async () => renderer?.unmount());
+    renderer = undefined;
+    expect(actionsRef.current).toBeNull();
+  });
+
   it("keeps the row's own menu where a lone tab's row is drawn", async () => {
     const itemsOf = await draw(false);
     expect(itemsOf(snapshot.panes[0] as HerdrPane)).not.toContain("new-terminal");

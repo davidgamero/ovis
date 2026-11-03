@@ -592,13 +592,14 @@ export function App() {
   const paletteKeys = keyboardLikely ? formatKeys(shortcutDisplayKeys("palette", settings.shortcutOverrides)).join("+") : "";
   // a lone tab on a cramped phone draws no row (TabStrip) and its pane no ellipsis (PaneCanvas): the
   // header's own ellipsis is the one menu there, so it carries the pane's and the tab's actions too.
-  // They come from the canvas's last render; each runs against its latest one, as the row's menu does
+  // They come from the canvas's last render; each runs as the canvas's latest one has it, and does
+  // nothing when that one no longer offers it (the pane or the layout changed while the menu was open)
   const cramped = useMediaQuery(CRAMPED_QUERY);
   const paneMenuInMore = selectedPane !== null
     && loneTabHidden(cramped, snapshot?.tabs.filter((tab) => tab.workspace_id === selectedPane.workspace_id).length ?? 0);
   const paneMoreItems = paneMenuInMore && selectedPane ? (paneActionsRef.current?.(selectedPane) ?? []).map((item, index): RowMenuItem => ({
     ...item, divider: index === 0 || item.divider,
-    run: () => (paneActionsRef.current?.(selectedPane).find((fresh) => fresh.id === item.id) ?? item).run(),
+    run: () => paneActionsRef.current?.(selectedPane).find((fresh) => fresh.id === item.id)?.run(),
   })) : [];
   const moreItems: RowMenuItem[] = [
     // first at every width: a phone's header has no palette button, and a touch screen no shortcut

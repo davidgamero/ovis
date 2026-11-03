@@ -242,7 +242,14 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
     { id: "close", label: t("Close pane"), icon: X, danger: true, run: () => requestClose(target) },
   ];
   const items = target ? itemsFor(target) : [];
-  if (actionsRef) actionsRef.current = itemsFor;
+  const published = useRef<{ ref: MutableRefObject<((target: HerdrPane) => RowMenuItem[]) | null>; items: typeof itemsFor } | null>(null);
+  if (actionsRef) { actionsRef.current = itemsFor; published.current = { ref: actionsRef, items: itemsFor }; }
+  // a canvas that goes (the setup guide in its place) leaves no actions behind for the header's menu
+  // or the row's; another canvas that took the ref over keeps its own
+  useEffect(() => () => {
+    const last = published.current;
+    if (last && last.ref.current === last.items) last.ref.current = null;
+  }, []);
 
   // One in-flight ratio at a time; retain only the newest position and always flush release.
   const flush = (current: Drag): void => {
