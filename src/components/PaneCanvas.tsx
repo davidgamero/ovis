@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type MouseEvent, type MutableRefObject, type PointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type DragEvent, type MouseEvent, type MutableRefObject, type PointerEvent, type ReactNode } from "react";
 import { ArchiveRestore, Bot, Columns2, Ellipsis, Eraser, Maximize2, MoveHorizontal, Pencil, Plus, Rows2, ArrowLeftRight, Terminal, TextWrap, X } from "lucide-react";
 import { createPortal } from "react-dom";
 import type { HerdrPane, HerdrTab, PaneLayoutSnapshot, SessionSnapshot } from "../../shared/protocol.ts";
@@ -20,6 +20,7 @@ import { userErrorMessage, type UserError } from "../lib/userError.ts";
 import { useFocusTrap } from "../lib/useFocusTrap.ts";
 import { usePhoneSheetBack } from "../lib/sheetHistory.ts";
 import { useMediaQuery } from "../lib/useMediaQuery.ts";
+import type { RenameRequest } from "../lib/useRenameRequest.ts";
 import { paneLifetimes } from "../lib/paneLifetime.ts";
 import { AgentMark } from "./AgentMark.tsx";
 import { displayPaneTitle } from "./Sidebar.tsx";
@@ -47,6 +48,8 @@ interface Props {
   /** the tab row's New tab with agent… and its + (a shell tab): where a lone tab's row is left out (TabStrip's cramped), the pane's menu offers them */
   onNewTab?: () => void;
   onNewTerminal?: () => Promise<void>;
+  /** the Rename tab shortcut or palette action for the open pane: where the row is left out, its dialog stands in for the row's field (TabStrip clears it) */
+  renameRequest?: RenameRequest | null;
 }
 type Menu = { paneId: string; anchor: HTMLElement; point?: { x: number; y: number }; previousFocus: HTMLElement | null };
 interface Drag {
@@ -69,7 +72,7 @@ interface Drag {
 }
 
 /** The active tab, drawn from herdr's rectangles. No browser-owned layout or PTY state. */
-export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged, renderPane, actionsRef, onOpenInHalf, mirrored = false, onRecoverUnsent, onNewTab, onNewTerminal }: Props) {
+export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged, renderPane, actionsRef, onOpenInHalf, mirrored = false, onRecoverUnsent, onNewTab, onNewTerminal, renameRequest = null }: Props) {
   const t = useT();
   const { settings, update: updateSettings } = useSettings();
   const narrowScreen = useMediaQuery(MIRROR_WRAP_QUERY);
@@ -142,6 +145,12 @@ export function PaneCanvas({ snapshot, pane, selectedPaneId, onSelect, onChanged
   }, []);
   useEffect(() => { cancelDrag(); }, [topology]);
   useEffect(() => { setMenu(null); setRenaming(null); setRenamingTab(null); setClosing(null); setError(null); }, [presented?.tab_id]);
+  // one press each: the request depends on itself alone, as the row's does (TabStrip)
+  useLayoutEffect(() => {
+    if (renameRequest === null || !loneRowHidden || appLayout || !presented) return;
+    const tab = snapshot?.tabs.find((entry) => entry.tab_id === presented.tab_id);
+    if (tab) setRenamingTab(tab);
+  }, [renameRequest]);
   useEffect(() => { if (menu && !snapshot?.panes.some((item) => item.pane_id === menu.paneId)) setMenu(null); }, [snapshot, menu]);
 
   const run = (operation: () => Promise<unknown>): void => {

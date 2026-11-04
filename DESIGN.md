@@ -1042,7 +1042,7 @@ Alert rows of the table above from the `--droplet-*` roles in `src/styles.css`.
   own items and a divider it carries what the missing row's menu would: a split tab's panes first,
   then the pane's actions, then New terminal (the row's `+`), New tab with agent… (as Chrome for
   iPhone keeps New Tab in its overflow menu) and Rename tab, in a dialog in place of the row's inline
-  field. Closing the lone tab closes its workspace, which Close pane (a one-pane tab) and the
+  field, which the palette's Rename tab and its shortcut open too. Closing the lone tab closes its workspace, which Close pane (a one-pane tab) and the
   sidebar's Close workspace already do. Extending the compact-height state to the Duo follows
   Apple's outer-display guidance to put chrome at the edge and preserve vertical room for content.
   Wherever a lone pane's ellipsis shows to a finger, the pane's banners (View only and the rest)

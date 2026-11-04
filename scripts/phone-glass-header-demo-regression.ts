@@ -110,6 +110,15 @@ try {
         await tabName.fill("Duo tab");
         await tabName.press("Enter");
         await tabName.waitFor({ state: "detached" });
+        // the palette's Rename tab (and its shortcut) opens the same dialog where the row is left out
+        await openMore(page);
+        await sheet.getByText("Search panes and actions", { exact: true }).click();
+        const search = page.getByRole("searchbox", { name: "Search panes and actions", exact: true });
+        await search.fill(">rename tab");
+        await search.press("Enter");
+        await tabName.waitFor();
+        await page.keyboard.press("Escape");
+        await tabName.waitFor({ state: "detached" });
 
         await page.setViewportSize({ width: 390, height: 844 });
         await page.locator(".tab-strip").waitFor();
